@@ -5,8 +5,8 @@ name: Release
 #   git tag v0.1.1 && git push origin --tags
 #
 # The version in the tag has to match module.prop, because module.prop is what
-# the manager shows and the release URL is what it fetches - if they disagree
-# the release exists at a URL nothing points to.
+# the manager shows and update.json is what it fetches - if they disagree the
+# release exists at a URL nothing points to.
 on:
   push:
     tags:
@@ -51,25 +51,75 @@ jobs:
       - name: Shellcheck
         run: shellcheck --shell=sh customize.sh post-fs-data.sh uninstall.sh
 
-      # The apk comes from the app repository's own release rather than being
-      # built here: it is a Soong target and needs an android tree. Whichever
-      # release is latest there is what this module ships.
-      - name: Fetch the apk
+      # The app lives in its own repository, and is built here rather than
+      # taken from a release there so that a module release is one action
+      # rather than two that can drift apart.
+      - name: Check out the app
+        uses: actions/checkout@v4
+        with:
+          repository: WitAqua/packages_apps_QcomPdInfo
+          path: app
+
+      - uses: actions/setup-java@v4
+        with:
+          distribution: temurin
+          java-version: '17'
+
+      - uses: gradle/actions/setup-gradle@v4
+        with:
+          gradle-version: '8.11.1'
+
+      # The signature is what decides whether an existing install can be
+      # updated, so a release that is not signed with this key is worse than no
+      # release. Fail rather than fall back to an unsigned build.
+      - name: Restore the signing key
         env:
-          GH_TOKEN: ${{ secrets.GITHUB_TOKEN }}
+          STORE_FILE_BASE64: ${{ secrets.STORE_FILE }}
         run: |
           set -euo pipefail
-          if ! gh release download --repo WitAqua/packages_apps_QcomPdInfo \
-               --pattern PdInfoRoot.apk --dir /tmp; then
-            echo "::error::no PdInfoRoot.apk in the latest release of"
-            echo "::error::WitAqua/packages_apps_QcomPdInfo - build it with"
-            echo "::error::Soong and attach it to a release there first"
+          if [ -z "${STORE_FILE_BASE64:-}" ]; then
+            echo "::error::no STORE_FILE secret. Push it from the private key"
+            echo "::error::repository - see WitAqua-tools/Android-Keys."
             exit 1
           fi
-          ls -l /tmp/PdInfoRoot.apk
+          printf '%s' "$STORE_FILE_BASE64" | base64 -d > "$RUNNER_TEMP/release.jks"
+
+      - name: Build the app
+        working-directory: app
+        env:
+          STORE_FILE: ${{ runner.temp }}/release.jks
+          STORE_PASSWORD: ${{ secrets.STORE_PASSWORD }}
+          KEY_ALIAS: ${{ secrets.KEY_ALIAS }}
+          KEY_PASSWORD: ${{ secrets.KEY_PASSWORD }}
+        run: gradle --no-daemon assembleRelease
+
+      # An apk that came out unsigned would install once and then never update,
+      # which is the failure worth catching before it is published rather than
+      # after.
+      - name: Check the signature
+        run: |
+          set -euo pipefail
+          apk=$(find app -name PdInfoRoot.apk -path '*release*' -print -quit)
+          [ -n "$apk" ] || { echo "::error::gradle produced no PdInfoRoot.apk"; exit 1; }
+          echo "apk: $apk"
+
+          apksigner=$(find "$ANDROID_HOME/build-tools" -name apksigner | sort -V | tail -1)
+          "$apksigner" verify --print-certs "$apk" | tee /tmp/certs.txt
+
+          # The fingerprint recorded in WitAqua-tools/Android-Keys. Checking
+          # it catches the secret having been replaced with a different key,
+          # which would publish an update nothing can install over.
+          expected="F752D7144144BD80573E62E5F956990DEB6C7C46DC38FEDC910AFA1454E608CF"
+          got=$(sed -n 's/.*SHA-256 digest: //p' /tmp/certs.txt | head -1 | tr -d ' :' | tr 'a-f' 'A-F')
+          if [ "$got" != "$expected" ]; then
+            echo "::error::signed with the wrong key. Expected $expected, got $got"
+            exit 1
+          fi
+
+          echo "apk=$apk" >> "$GITHUB_ENV"
 
       - name: Pack
-        run: ./pack.sh /tmp/PdInfoRoot.apk
+        run: ./pack.sh "$apk"
 
       - name: Check zip layout
         run: |

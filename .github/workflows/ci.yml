@@ -21,15 +21,34 @@ jobs:
       - name: Shellcheck
         run: shellcheck --shell=sh customize.sh post-fs-data.sh uninstall.sh
 
-      # The apk is built with Soong, against an android tree, so it cannot be
-      # built here - a release takes it from the app repository. Packing a
-      # stand-in is still worth doing: what this checks is the zip's shape,
-      # which is what decides whether the installer takes the module at all.
-      - name: Pack with a stand-in apk
+      # Build the app the same way a release does, so that a change over
+      # there which stops compiling is caught here rather than at tag time.
+      # Unsigned: the signature only matters for something being published.
+      - name: Check out the app
+        uses: actions/checkout@v4
+        with:
+          repository: WitAqua/packages_apps_QcomPdInfo
+          path: app
+
+      - uses: actions/setup-java@v4
+        with:
+          distribution: temurin
+          java-version: '17'
+
+      - uses: gradle/actions/setup-gradle@v4
+        with:
+          gradle-version: '8.11.1'
+
+      - name: Build the app
+        working-directory: app
+        run: gradle --no-daemon assembleRelease
+
+      - name: Pack
         run: |
           set -euo pipefail
-          printf 'not an apk\n' > /tmp/PdInfoRoot.apk
-          ./pack.sh /tmp/PdInfoRoot.apk
+          apk=$(find app -name PdInfoRoot.apk -path '*release*' -print -quit)
+          [ -n "$apk" ] || { echo "::error::gradle produced no PdInfoRoot.apk"; exit 1; }
+          ./pack.sh "$apk"
 
       # A module whose post-fs-data.sh did not reach the zip root installs
       # cleanly and then does nothing, which is the failure this repository is
@@ -63,4 +82,5 @@ jobs:
 
       # Deliberately no upload-artifact. It re-zips whatever it is given, so
       # the download would be a zip containing the module zip, and a zip of a
-      # zip is not installable. And this one carries a stand-in apk anyway.
+      # zip is not installable. Releases are where an installable zip comes
+      # from, and this one is unsigned in any case.
