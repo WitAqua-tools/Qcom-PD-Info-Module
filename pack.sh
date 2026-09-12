@@ -21,9 +21,14 @@ if [ ! -f "$apk" ]; then
 	exit 1
 fi
 
-version=$(sed -n 's/^version=//p' "$here/module.prop")
+id=$(sed -n 's/^id=//p' "$here/module.prop")
 out=$here/out
-zip=$out/qcom_pd_info-$version.zip
+
+# The name carries no version on purpose. update.json points the manager at
+# releases/latest/download/<name>.zip, which only resolves for a fixed name -
+# a versioned one would need update.json rewritten to a tag every release, and
+# the whole point is that it does not have to be.
+zip=$out/$id.zip
 
 rm -rf "$out/stage" "$zip"
 mkdir -p "$out/stage"

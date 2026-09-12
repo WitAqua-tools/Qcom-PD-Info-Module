@@ -40,7 +40,7 @@ jobs:
           {
             echo "id=$id"
             echo "version=$version"
-            echo "zip=out/$id-$version.zip"
+            echo "zip=out/$id.zip"
           } >> "$GITHUB_OUTPUT"
 
       # Same checks as CI. A tag can be pushed at a commit CI never ran on, so
@@ -80,6 +80,9 @@ jobs:
               echo "::error::the zip has no $required at its root"; exit 1; }
           done
 
+      # update.json points the manager at releases/latest/download, so the
+      # asset name must not change between releases - validate.sh checks that
+      # the name it expects is the one pack.sh builds.
       - name: Release
         uses: ncipollo/release-action@v1
         with:

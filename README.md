@@ -93,3 +93,29 @@ attaches the zip to a release.
 ## Licence
 
 Apache 2.0.
+
+## Updating
+
+`module.prop` carries an `updateJson`, so the KernelSU manager offers updates
+by itself:
+
+```
+updateJson=https://raw.githubusercontent.com/WitAqua-tools/Qcom-PD-Info-KSU/main/update.json
+```
+
+`update.json` is fetched from the branch rather than from a release, which
+makes it the one file that can be wrong without anything failing to build - a
+stale version there means the manager either never offers the update, or offers
+one and then downloads the old zip. `validate.sh` compares it against
+`module.prop` on every run for that reason, and CI fails if they disagree.
+
+The zip's name carries no version on purpose: `releases/latest/download` only
+resolves for a fixed name, and a versioned one would mean rewriting
+`update.json` to a tag every release.
+
+## Installing from recovery
+
+You cannot, and it is not an oversight. `customize.sh` installs the apk with
+`pm install`, which needs a booted system - so there is no
+`META-INF/com/google/android/update-binary` here. Install it from the KernelSU
+manager.

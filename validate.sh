@@ -37,6 +37,39 @@ if ! grep -q "^## $version\$" "$here/changelog.md"; then
 	note "changelog.md has no '## $version' section"
 fi
 
+# update.json is how the manager offers an update, and it is fetched from the
+# branch rather than from the release - so it is the one file that can be
+# wrong without anything failing to build. A stale version here means the
+# manager either never offers the update or offers one and installs the old
+# zip, which is worse.
+u=$here/update.json
+if [ ! -f "$u" ]; then
+	note "no update.json, so the manager has nothing to check for updates"
+else
+	json_string() { sed -n "s/.*\"$1\"[[:space:]]*:[[:space:]]*\"\([^\"]*\)\".*/\1/p" "$u"; }
+	json_number() { sed -n "s/.*\"$1\"[[:space:]]*:[[:space:]]*\([0-9]*\).*/\1/p" "$u"; }
+
+	[ "$(json_string version)" = "$version" ] ||
+		note "update.json says version $(json_string version), module.prop says $version"
+	[ "$(json_number versionCode)" = "$code" ] ||
+		note "update.json says versionCode $(json_number versionCode), module.prop says $code"
+
+	# releases/latest/download only resolves for a name that does not change,
+	# and pack.sh names the zip after the id. If these drift the manager
+	# downloads a 404.
+	zip_name=$(basename "$(json_string zipUrl)")
+	[ "$zip_name" = "$id.zip" ] ||
+		note "update.json points at $zip_name; pack.sh builds $id.zip"
+
+	# module.prop has to name update.json, or none of the above is ever read.
+	declared=$(sed -n 's/^updateJson=//p' "$prop")
+	case $declared in
+		*/update.json) ;;
+		"") note "module.prop has no updateJson, so updates are never offered" ;;
+		*) note "updateJson does not end in update.json: $declared" ;;
+	esac
+fi
+
 # These run in ksud's shell as root before the framework is up. sh -n catches
 # only syntax, which is still the failure that would hurt most.
 for script in "$here"/customize.sh "$here"/post-fs-data.sh "$here"/uninstall.sh; do
