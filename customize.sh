@@ -8,9 +8,9 @@ ui_print "- Qualcomm PD Info"
 # The app is installed rather than overlaid into /system: it is an ordinary
 # application, signed with our own key, and has no business on the system
 # image. A module that only carried an apk would install and do nothing.
-APK=$MODPATH/PdInfoRoot.apk
+APK=$MODPATH/QcomPdInfoRoot.apk
 if [ ! -f "$APK" ]; then
-  abort "! PdInfoRoot.apk is missing from the module"
+  abort "! QcomPdInfoRoot.apk is missing from the module"
 fi
 
 ui_print "- Installing the viewer"

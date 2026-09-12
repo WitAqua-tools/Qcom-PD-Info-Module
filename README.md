@@ -1,4 +1,4 @@
-# Qcom PD Info (KernelSU module)
+# Qcom PD Info (module)
 
 Installs the [USB Power Delivery
 viewer](https://github.com/WitAqua/packages_apps_QcomPdInfo) and, where it is
@@ -26,10 +26,15 @@ nothing where nothing is needed.
 
 ## Installing
 
-Flash the zip in the KernelSU manager and reboot. Then open **USB Power
-Delivery** and grant it root.
+Flash the zip in the KernelSU or Magisk manager and reboot. Then open **USB
+Power Delivery** and grant it root.
 
-The app needs, in its App Profile:
+Nothing here is specific to either: the installer uses only `ui_print`, `abort`
+and `set_perm_recursive`, which both document with the same signatures, and
+`post-fs-data.sh` and `updateJson` are the same in both. Built and tested
+against KernelSU; it should work under Magisk, though that has not been run.
+
+On KernelSU the app needs, in its App Profile:
 
 | | |
 | --- | --- |
@@ -38,7 +43,8 @@ The app needs, in its App Profile:
 | SELinux context | `u:r:ksu:s0` |
 
 The context is the part that matters. The shell's own context cannot reach
-either debugfs or the type-C class, whatever the uid.
+either debugfs or the type-C class, whatever the uid. Magisk's own `su` runs in
+a context that can, so there is nothing to configure there.
 
 ## What it does on install
 
@@ -83,7 +89,7 @@ and only takes it where it is needed.
 ## Building
 
 ```sh
-./pack.sh path/to/PdInfoRoot.apk
+./pack.sh path/to/QcomPdInfoRoot.apk
 ```
 
 The apk is a build artefact and is not kept in this repository; the zip is the
@@ -100,7 +106,7 @@ Apache 2.0.
 by itself:
 
 ```
-updateJson=https://raw.githubusercontent.com/WitAqua-tools/Qcom-PD-Info-KSU/main/update.json
+updateJson=https://raw.githubusercontent.com/WitAqua-tools/Qcom-PD-Info-Module/main/update.json
 ```
 
 `update.json` is fetched from the branch rather than from a release, which

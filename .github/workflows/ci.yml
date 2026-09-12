@@ -46,8 +46,8 @@ jobs:
       - name: Pack
         run: |
           set -euo pipefail
-          apk=$(find app -name PdInfoRoot.apk -path '*release*' -print -quit)
-          [ -n "$apk" ] || { echo "::error::gradle produced no PdInfoRoot.apk"; exit 1; }
+          apk=$(find app -name QcomPdInfoRoot.apk -path '*release*' -print -quit)
+          [ -n "$apk" ] || { echo "::error::gradle produced no QcomPdInfoRoot.apk"; exit 1; }
           ./pack.sh "$apk"
 
       # A module whose post-fs-data.sh did not reach the zip root installs
@@ -63,7 +63,7 @@ jobs:
             names=$(unzip -Z1 "$zip")
             echo "$names"
 
-            for required in module.prop customize.sh post-fs-data.sh uninstall.sh PdInfoRoot.apk; do
+            for required in module.prop customize.sh post-fs-data.sh uninstall.sh QcomPdInfoRoot.apk; do
               if ! printf '%s\n' "$names" | grep -qx "$required"; then
                 echo "::error::$zip has no $required at its root"
                 exit 1

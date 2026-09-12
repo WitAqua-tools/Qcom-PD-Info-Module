@@ -1,7 +1,7 @@
 #!/usr/bin/env bash
 # Pack the module, taking the apk from a Soong out directory.
 #
-#   ./pack.sh [<path to PdInfoRoot.apk>]
+#   ./pack.sh [<path to QcomPdInfoRoot.apk>]
 #
 # The apk is not kept in the module directory: it is a build artefact, and the
 # zip is the only place the two belong together.
@@ -13,11 +13,11 @@ apk=${1:-}
 if [ -z "$apk" ]; then
 	# Wherever the last local build put it.
 	apk=$(find "${ANDROID_BUILD_TOP:-$HOME/witaqua/15.2}/out/soong/.intermediates" \
-		-name PdInfoRoot.apk -print -quit 2>/dev/null || true)
+		-name QcomPdInfoRoot.apk -print -quit 2>/dev/null || true)
 fi
 
 if [ ! -f "$apk" ]; then
-	echo "pack.sh: no PdInfoRoot.apk (pass one, or build it first)" >&2
+	echo "pack.sh: no QcomPdInfoRoot.apk (pass one, or build it first)" >&2
 	exit 1
 fi
 
@@ -34,7 +34,7 @@ rm -rf "$out/stage" "$zip"
 mkdir -p "$out/stage"
 cp "$here"/module.prop "$here"/customize.sh "$here"/post-fs-data.sh \
    "$here"/uninstall.sh "$out/stage/"
-cp "$apk" "$out/stage/PdInfoRoot.apk"
+cp "$apk" "$out/stage/QcomPdInfoRoot.apk"
 
 # The zip is the directory's contents at its root, which is what the installer
 # expects - not the directory itself.

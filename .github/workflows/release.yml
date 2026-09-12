@@ -99,8 +99,8 @@ jobs:
       - name: Check the signature
         run: |
           set -euo pipefail
-          apk=$(find app -name PdInfoRoot.apk -path '*release*' -print -quit)
-          [ -n "$apk" ] || { echo "::error::gradle produced no PdInfoRoot.apk"; exit 1; }
+          apk=$(find app -name QcomPdInfoRoot.apk -path '*release*' -print -quit)
+          [ -n "$apk" ] || { echo "::error::gradle produced no QcomPdInfoRoot.apk"; exit 1; }
           echo "apk: $apk"
 
           apksigner=$(find "$ANDROID_HOME/build-tools" -name apksigner | sort -V | tail -1)
@@ -125,7 +125,7 @@ jobs:
         run: |
           set -euo pipefail
           names=$(unzip -Z1 "${{ steps.module.outputs.zip }}")
-          for required in module.prop customize.sh post-fs-data.sh uninstall.sh PdInfoRoot.apk; do
+          for required in module.prop customize.sh post-fs-data.sh uninstall.sh QcomPdInfoRoot.apk; do
             printf '%s\n' "$names" | grep -qx "$required" || {
               echo "::error::the zip has no $required at its root"; exit 1; }
           done
