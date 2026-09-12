@@ -113,9 +113,24 @@ The zip's name carries no version on purpose: `releases/latest/download` only
 resolves for a fixed name, and a versioned one would mean rewriting
 `update.json` to a tag every release.
 
-## Installing from recovery
+## Why there is no META-INF
 
-You cannot, and it is not an oversight. `customize.sh` installs the apk with
-`pm install`, which needs a booted system - so there is no
-`META-INF/com/google/android/update-binary` here. Install it from the KernelSU
-manager.
+A module zip carries `META-INF/com/google/android/update-binary` only to be
+flashable from a custom recovery. Neither manager reads it:
+
+- KernelSU has no recovery installation at all. Its documentation is blunt
+  about it - *"KernelSU module is **NOT** compatible for installation in a
+  custom Recovery!"* - and the module structure it documents has no META-INF in
+  it.
+- Magisk's own documentation marks the directory *"Only needed for flashing in
+  recovery"*, and its app writes its own `module_installer.sh` out of its
+  assets and runs that against the zip rather than reading anything from
+  `META-INF`. It says as much: *"When your module is downloaded with the Magisk
+  app, `update-binary` will be **forcefully** replaced"*.
+
+So the only thing it would add is recovery flashing, which this module could
+not usefully support anyway: `customize.sh` installs the apk with `pm install`,
+and there is no package manager in recovery.
+
+Install it from the KernelSU manager. It works under Magisk's manager too - the
+scripts here use only what both provide.
