@@ -23,7 +23,6 @@ jobs:
 
       # Build the app the same way a release does, so that a change over
       # there which stops compiling is caught here rather than at tag time.
-      # Unsigned: the signature only matters for something being published.
       - name: Check out the app
         uses: actions/checkout@v4
         with:
@@ -39,16 +38,50 @@ jobs:
         with:
           gradle-version: '8.11.1'
 
+      # testkey.jks is the public AOSP debug key, so this needs no secret and
+      # runs on a pull request from a fork the same as on main. Signed rather
+      # than unsigned because an unsigned apk cannot be installed at all: the
+      # point of the zip below is that somebody can flash it and try it.
       - name: Build the app
         working-directory: app
+        env:
+          STORE_FILE: ${{ github.workspace }}/testkey.jks
+          STORE_PASSWORD: android
+          KEY_ALIAS: android
+          KEY_PASSWORD: android
         run: gradle --no-daemon assembleRelease
 
-      - name: Pack
+      # CI publishes to anybody who can read this repository, so the check that
+      # matters here is the opposite of the release one: the release key must
+      # never come out of this job, whatever a future edit does to the env
+      # above.
+      - name: Check the signature
         run: |
           set -euo pipefail
           apk=$(find app -name QcomPdInfoRoot.apk -path '*release*' -print -quit)
           [ -n "$apk" ] || { echo "::error::gradle produced no QcomPdInfoRoot.apk"; exit 1; }
-          ./pack.sh "$apk"
+          echo "apk: $apk"
+
+          apksigner=$(find "$ANDROID_HOME/build-tools" -name apksigner | sort -V | tail -1)
+          "$apksigner" verify --print-certs "$apk" | tee certs.txt
+
+          testkey=A40DA80A59D170CAA950CF15C18C454D47A39B26989D8B640ECD745BA71BF5DC
+          release=F752D7144144BD80573E62E5F956990DEB6C7C46DC38FEDC910AFA1454E608CF
+          got=$(sed -n 's/.*SHA-256 digest: //p' certs.txt | head -1 | tr -d ' :' | tr 'a-f' 'A-F')
+
+          if [ "$got" = "$release" ]; then
+            echo "::error::CI signed with the release key. Only tagged releases may use it"
+            exit 1
+          fi
+          if [ "$got" != "$testkey" ]; then
+            echo "::error::not signed with testkey.jks. Expected $testkey, got $got"
+            exit 1
+          fi
+
+          echo "apk=$apk" >> "$GITHUB_ENV"
+
+      - name: Pack
+        run: ./pack.sh "$apk"
 
       # A module whose post-fs-data.sh did not reach the zip root installs
       # cleanly and then does nothing, which is the failure this repository is
@@ -80,7 +113,28 @@ jobs:
             echo ok
           done
 
-      # Deliberately no upload-artifact. It re-zips whatever it is given, so
-      # the download would be a zip containing the module zip, and a zip of a
-      # zip is not installable. Releases are where an installable zip comes
-      # from, and this one is unsigned in any case.
+      # upload-artifact re-zips whatever it is given, so it gets the module's
+      # contents rather than the module zip: what downloads is then itself a
+      # zip with module.prop at its root, which is what the installer expects.
+      # Handing it the zip would produce a zip containing a zip, which is not
+      # installable.
+      - name: Lay the zip out for upload
+        run: |
+          set -euo pipefail
+          rm -rf out/artifact
+          mkdir -p out/artifact
+          for zip in out/*.zip; do
+            unzip -q "$zip" -d out/artifact
+          done
+          ls -l out/artifact
+
+      - name: Publish the zip
+        uses: actions/upload-artifact@v4
+        with:
+          # The name says which key it is because a test-signed build and a
+          # release-signed one cannot replace each other: installing this and
+          # then a release means uninstalling the app in between.
+          name: qcom_pd_info-testkey-${{ github.sha }}
+          path: out/artifact/
+          if-no-files-found: error
+          retention-days: 30

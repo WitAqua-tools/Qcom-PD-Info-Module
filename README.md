@@ -93,8 +93,28 @@ and only takes it where it is needed.
 ```
 
 The apk is a build artefact and is not kept in this repository; the zip is the
-only place the two belong together. CI builds it from the app repository and
-attaches the zip to a release.
+only place the two belong together. CI builds it from the app repository.
+
+### Test builds
+
+Every push and pull request produces an installable zip, under **Actions** on
+the run, as the artefact named `qcom_pd_info-testkey-<sha>`. Download it and
+flash it as it is - GitHub's own zip is the module zip, not a zip containing
+one.
+
+It is signed with `testkey.jks`, which is the public AOSP debug key and
+therefore in this repository rather than in a secret. That makes a test build
+reproducible by anyone and lets a pull request from a fork produce one, at the
+cost of the signature meaning nothing: it says the file was not corrupted, not
+where it came from.
+
+**A test build and a release cannot replace each other.** Android refuses an
+update whose signature differs from the installed one, so going from one to the
+other means uninstalling **USB Power Delivery** first. The module zip itself
+replaces fine; it is the app inside it that will not.
+
+Releases are built by the tag workflow with the real key, which CI refuses to
+use and the release refuses to run without.
 
 ## Licence
 
