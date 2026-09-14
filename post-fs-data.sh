@@ -35,6 +35,21 @@ for caps in /sys/class/usb_power_delivery/*/source-capabilities; do
 	fi
 done
 
+if [ -d /sys/kernel/debug/usb/ucsi ]; then
+	# Already reachable.
+	exit 0
+fi
+
+# Leave an existing debugfs alone, and do not stack a second mount on it.
+if grep -q ' /sys/kernel/debug debugfs ' /proc/mounts; then
+	exit 0
+fi
+
+mount -t debugfs debugfs /sys/kernel/debug 2>/dev/null || exit 0
+
+# A kernel without the UCSI debugfs interface - anything before android15-6.6 -
+# gains nothing from the mount, and a class that registered no devices at all
+# is that kernel. Leave no trace where there was nothing to reach.
 if [ ! -d /sys/kernel/debug/usb/ucsi ]; then
-	mount -t debugfs debugfs /sys/kernel/debug 2>/dev/null
+	umount /sys/kernel/debug 2>/dev/null
 fi

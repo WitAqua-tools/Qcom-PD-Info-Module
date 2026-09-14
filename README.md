@@ -57,10 +57,63 @@ is clear up front whether the object list will appear at all.
 | --- | --- |
 | Qualcomm's own driver (`/sys/class/usbpd`) | not mounted - it has the objects and the request |
 | No power delivery interface | not mounted - nothing to help with |
+| Upstream class with no devices in it | not mounted - no interface to ask |
 | Upstream class carrying the lists | not mounted |
 | Upstream class registered and empty | **mounted** |
 
+The mount is also undone again where it turns out to buy nothing: whether a
+kernel has the UCSI debugfs interface cannot be seen until debugfs is mounted,
+so `post-fs-data.sh` mounts, looks for `/sys/kernel/debug/usb/ucsi`, and
+unmounts where it is not there.
+
 Removing the module uninstalls the app, since the module is what installed it.
+
+## What root cannot get
+
+Root and this module buy two things: the UCSI debugfs interface, and a context
+that may read it. Where the kernel has no such interface there is nothing for
+either to reach, and no privilege invents it.
+
+| Board | Object list | What was requested |
+| --- | --- | --- |
+| Qualcomm's own driver, `/sys/class/usbpd` | sysfs, no root needed | sysfs, the `rdo` word |
+| `usb_power_delivery` carrying the lists (android15-6.6) | sysfs | debugfs, so this module |
+| `usb_power_delivery` registered and empty (android16-6.12, where the firmware reports no PDO details) | debugfs, so this module | debugfs |
+| `usb_power_delivery` present with no devices in it (android14-6.1: UCSI only began registering them in 6.6) | **nowhere** | **nowhere** |
+| No power delivery interface at all (CLO 5.10 and 5.15 on pmic-glink) | **nowhere** | **nowhere** |
+
+The last two rows are the boards root does not help with, and the module mounts
+nothing on them. What the app shows there:
+
+- the port, the roles and whether a contract was negotiated, from the type-C
+  class
+- what the charger is, from `/sys/class/qcom-battery/usb_real_type` - `PD`,
+  `PD_PPS`, `HVDCP_3` and the rest
+- the negotiated voltage and current as UCSI worked them out, from
+  `ucsi-source-psy-*`
+- what is actually arriving, from the charger's own power supply
+
+and what it cannot:
+
+- **the object list.** The driver did read the objects - `con->src_pdos` is
+  filled whenever a contract is in force - but nothing publishes them, and root
+  cannot read what does not exist. Only a kernel change does: the viewer's
+  [docs/kernel.md](https://github.com/WitAqua/packages_apps_QcomPdInfo/blob/main/docs/kernel.md)
+  has the two smallest ones, and
+  [docs/5.10_xiaomi-sm8450.md](https://github.com/WitAqua/packages_apps_QcomPdInfo/blob/main/docs/5.10_xiaomi-sm8450.md)
+  works one board through.
+- **the request object.** Same reason. The `usb_power_delivery` class has no
+  attribute for it at any kernel version either, which is why the row above it
+  needs debugfs.
+- **the two figures, when the contract is PPS.** UCSI derives them with
+  `pdo_fixed_voltage()` and `rdo_op_current()`, which read fields a programmable
+  supply's object does not have, so where `usb_real_type` says `PD_PPS` the app
+  withholds them rather than showing numbers that mean nothing. The measurement
+  is still there.
+
+One limit is not the kernel's: `usb_real_type` is qualcomm's charger, so on a
+board from anyone else nothing says whether a contract is programmable, and the
+two figures are shown with that caveat instead of being withheld.
 
 ## Is leaving debugfs mounted a problem?
 
